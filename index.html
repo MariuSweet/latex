@@ -3,872 +3,420 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LaTeX Cloud Editor</title>
+<title>Mercurio</title>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-  :root {
-    --bg: #0d0d0f;
-    --surface: #141418;
-    --surface2: #1c1c22;
-    --border: #2a2a35;
-    --accent: #7c6af7;
-    --accent2: #4fd1c5;
-    --text: #e8e8f0;
-    --text-dim: #6b6b80;
-    --danger: #f56565;
-    --success: #48bb78;
-    --font-mono: 'JetBrains Mono', monospace;
-    --font-display: 'Syne', sans-serif;
-  }
-
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: var(--font-display);
-    height: 100vh;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-  }
-
-  /* AUTH SCREEN */
-  #auth-screen {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 100vh;
-    background: var(--bg);
-    position: relative;
-    overflow: hidden;
-  }
-
-  #auth-screen::before {
-    content: '';
-    position: absolute;
-    width: 600px; height: 600px;
-    background: radial-gradient(circle, rgba(124,106,247,0.15) 0%, transparent 70%);
-    top: -100px; left: -100px;
-    pointer-events: none;
-  }
-
-  #auth-screen::after {
-    content: '';
-    position: absolute;
-    width: 400px; height: 400px;
-    background: radial-gradient(circle, rgba(79,209,197,0.1) 0%, transparent 70%);
-    bottom: -50px; right: -50px;
-    pointer-events: none;
-  }
-
-  .auth-box {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 48px;
-    width: 400px;
-    position: relative;
-    z-index: 1;
-    animation: fadeUp 0.5s ease;
-  }
-
-  @keyframes fadeUp {
-    from { opacity: 0; transform: translateY(20px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-
-  .auth-logo {
-    font-size: 28px;
-    font-weight: 800;
-    margin-bottom: 8px;
-    background: linear-gradient(135deg, var(--accent), var(--accent2));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-
-  .auth-subtitle {
-    color: var(--text-dim);
-    font-size: 14px;
-    margin-bottom: 32px;
-    font-family: var(--font-mono);
-  }
-
-  .auth-tabs {
-    display: flex;
-    gap: 4px;
-    margin-bottom: 28px;
-    background: var(--surface2);
-    padding: 4px;
-    border-radius: 8px;
-  }
-
-  .auth-tab {
-    flex: 1;
-    padding: 8px;
-    border: none;
-    background: transparent;
-    color: var(--text-dim);
-    font-family: var(--font-display);
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    border-radius: 6px;
-    transition: all 0.2s;
-  }
-
-  .auth-tab.active {
-    background: var(--accent);
-    color: white;
-  }
-
-  .form-group {
-    margin-bottom: 16px;
-  }
-
-  .form-group label {
-    display: block;
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--text-dim);
-    margin-bottom: 6px;
-    font-family: var(--font-mono);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-
-  .form-group input {
-    width: 100%;
-    padding: 12px 16px;
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    color: var(--text);
-    font-family: var(--font-mono);
-    font-size: 14px;
-    outline: none;
-    transition: border-color 0.2s;
-  }
-
-  .form-group input:focus {
-    border-color: var(--accent);
-  }
-
-  .btn-primary {
-    width: 100%;
-    padding: 14px;
-    background: var(--accent);
-    border: none;
-    border-radius: 8px;
-    color: white;
-    font-family: var(--font-display);
-    font-size: 15px;
-    font-weight: 700;
-    cursor: pointer;
-    transition: all 0.2s;
-    margin-top: 8px;
-  }
-
-  .btn-primary:hover { background: #6b5ce7; transform: translateY(-1px); }
-  .btn-primary:active { transform: translateY(0); }
-  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
-
-  .auth-error {
-    color: var(--danger);
-    font-size: 13px;
-    margin-top: 12px;
-    font-family: var(--font-mono);
-    text-align: center;
-  }
-
-  /* MAIN APP */
-  #app {
-    display: none;
-    flex-direction: column;
-    height: 100vh;
-  }
-
-  /* HEADER */
-  .header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 20px;
-    height: 52px;
-    background: var(--surface);
-    border-bottom: 1px solid var(--border);
-    flex-shrink: 0;
-  }
-
-  .header-left {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-  }
-
-  .logo {
-    font-size: 18px;
-    font-weight: 800;
-    background: linear-gradient(135deg, var(--accent), var(--accent2));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-
-  .project-selector {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  #project-select {
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    color: var(--text);
-    font-family: var(--font-mono);
-    font-size: 13px;
-    padding: 6px 10px;
-    outline: none;
-    cursor: pointer;
-    max-width: 200px;
-  }
-
-  .btn-icon {
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    color: var(--text);
-    padding: 6px 10px;
-    cursor: pointer;
-    font-size: 13px;
-    font-family: var(--font-display);
-    font-weight: 600;
-    transition: all 0.15s;
-    white-space: nowrap;
-  }
-
-  .btn-icon:hover { border-color: var(--accent); color: var(--accent); }
-
-  .header-right {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-
-  .compile-btn {
-    background: var(--accent);
-    border: none;
-    border-radius: 8px;
-    color: white;
-    padding: 8px 20px;
-    font-family: var(--font-display);
-    font-size: 14px;
-    font-weight: 700;
-    cursor: pointer;
-    transition: all 0.2s;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .compile-btn:hover { background: #6b5ce7; }
-  .compile-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
-  .save-btn {
-    background: transparent;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    color: var(--text);
-    padding: 8px 16px;
-    font-family: var(--font-display);
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .save-btn:hover { border-color: var(--accent2); color: var(--accent2); }
-
-  .user-info {
-    font-size: 12px;
-    color: var(--text-dim);
-    font-family: var(--font-mono);
-  }
-
-  .logout-btn {
-    background: transparent;
-    border: none;
-    color: var(--text-dim);
-    font-size: 12px;
-    cursor: pointer;
-    font-family: var(--font-mono);
-    transition: color 0.2s;
-  }
-
-  .logout-btn:hover { color: var(--danger); }
-
-  /* MAIN LAYOUT */
-  .main {
-    display: flex;
-    flex: 1;
-    overflow: hidden;
-  }
-
-  /* EDITOR */
-  .editor-pane {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    border-right: 1px solid var(--border);
-    min-width: 0;
-  }
-
-  .pane-header {
-    padding: 8px 16px;
-    background: var(--surface);
-    border-bottom: 1px solid var(--border);
-    font-size: 11px;
-    font-family: var(--font-mono);
-    color: var(--text-dim);
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-
-  #editor {
-    flex: 1;
-    background: var(--bg);
-    color: var(--text);
-    font-family: var(--font-mono);
-    font-size: 14px;
-    line-height: 1.7;
-    padding: 24px;
-    border: none;
-    outline: none;
-    resize: none;
-    tab-size: 2;
-  }
-
-  /* PDF VIEWER */
-  .pdf-pane {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-  }
-
-  .pdf-container {
-    flex: 1;
-    background: #404040;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    overflow: auto;
-    position: relative;
-  }
-
-  #pdf-frame {
-    width: 100%;
-    height: 100%;
-    border: none;
-    display: none;
-  }
-
-  .pdf-placeholder {
-    text-align: center;
-    color: var(--text-dim);
-  }
-
-  .pdf-placeholder .icon {
-    font-size: 48px;
-    margin-bottom: 16px;
-    opacity: 0.3;
-  }
-
-  .pdf-placeholder p {
-    font-size: 14px;
-    font-family: var(--font-mono);
-  }
-
-  /* STATUS BAR */
-  .status-bar {
-    height: 28px;
-    background: var(--surface);
-    border-top: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    padding: 0 16px;
-    gap: 16px;
-    flex-shrink: 0;
-  }
-
-  .status-item {
-    font-size: 11px;
-    font-family: var(--font-mono);
-    color: var(--text-dim);
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-
-  .status-dot {
-    width: 6px; height: 6px;
-    border-radius: 50%;
-    background: var(--text-dim);
-  }
-
-  .status-dot.green { background: var(--success); }
-  .status-dot.yellow { background: #f6ad55; animation: pulse 1s infinite; }
-  .status-dot.red { background: var(--danger); }
-
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.3; }
-  }
-
-  /* MODAL */
-  .modal-overlay {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.7);
-    z-index: 100;
-    align-items: center;
-    justify-content: center;
-    backdrop-filter: blur(4px);
-  }
-
-  .modal-overlay.active { display: flex; }
-
-  .modal {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 32px;
-    width: 360px;
-    animation: fadeUp 0.2s ease;
-  }
-
-  .modal h3 {
-    font-size: 18px;
-    font-weight: 800;
-    margin-bottom: 20px;
-  }
-
-  .modal input {
-    width: 100%;
-    padding: 12px 16px;
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    color: var(--text);
-    font-family: var(--font-mono);
-    font-size: 14px;
-    outline: none;
-    margin-bottom: 16px;
-    transition: border-color 0.2s;
-  }
-
-  .modal input:focus { border-color: var(--accent); }
-
-  .modal-btns {
-    display: flex;
-    gap: 8px;
-    justify-content: flex-end;
-  }
-
-  .btn-cancel {
-    padding: 10px 20px;
-    background: transparent;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    color: var(--text);
-    font-family: var(--font-display);
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .btn-cancel:hover { border-color: var(--danger); color: var(--danger); }
-
-  .btn-confirm {
-    padding: 10px 20px;
-    background: var(--accent);
-    border: none;
-    border-radius: 8px;
-    color: white;
-    font-family: var(--font-display);
-    font-weight: 700;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .btn-confirm:hover { background: #6b5ce7; }
-
-  .spinner {
-    width: 14px; height: 14px;
-    border: 2px solid rgba(255,255,255,0.3);
-    border-top-color: white;
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-    display: none;
-  }
-
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  .compile-btn.loading .spinner { display: block; }
-  .compile-btn.loading .btn-text { display: none; }
+:root {
+  --bg:#0d0d0f;--surface:#141418;--surface2:#1c1c22;--border:#2a2a35;
+  --accent:#7c6af7;--accent2:#4fd1c5;--text:#e8e8f0;--text-dim:#6b6b80;
+  --danger:#f56565;--success:#48bb78;--warn:#f6ad55;
+  --mono:'JetBrains Mono',monospace;--ui:'Syne',sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--text);font-family:var(--ui);height:100vh;overflow:hidden;display:flex;flex-direction:column;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* AUTH */
+#auth{display:flex;align-items:center;justify-content:center;height:100vh;background:radial-gradient(ellipse at 20% 20%,rgba(124,106,247,.13) 0%,transparent 55%),radial-gradient(ellipse at 80% 80%,rgba(79,209,197,.09) 0%,transparent 55%),var(--bg);}
+.abox{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:44px;width:390px;animation:fadeUp .4s ease;}
+.alogo{font-size:26px;font-weight:800;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:4px;}
+.asub{color:var(--text-dim);font-size:12px;font-family:var(--mono);margin-bottom:28px;}
+.atabs{display:flex;gap:4px;background:var(--surface2);padding:4px;border-radius:8px;margin-bottom:22px;}
+.atab{flex:1;padding:8px;border:none;background:transparent;color:var(--text-dim);font-family:var(--ui);font-size:13px;font-weight:700;cursor:pointer;border-radius:6px;transition:.2s;}
+.atab.on{background:var(--accent);color:#fff;}
+.field{margin-bottom:13px;}
+.field label{display:block;font-size:11px;font-weight:700;color:var(--text-dim);margin-bottom:5px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em;}
+.field input{width:100%;padding:11px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--mono);font-size:13px;outline:none;transition:.2s;}
+.field input:focus{border-color:var(--accent);}
+.bprimary{width:100%;padding:13px;background:var(--accent);border:none;border-radius:8px;color:#fff;font-family:var(--ui);font-size:14px;font-weight:700;cursor:pointer;transition:.2s;margin-top:6px;}
+.bprimary:hover{background:#6b5ce7;}.bprimary:disabled{opacity:.5;cursor:not-allowed;}
+.aerr{color:var(--danger);font-size:12px;margin-top:10px;font-family:var(--mono);text-align:center;min-height:16px;}
+
+/* PROJECTS */
+#projects{display:none;flex-direction:column;height:100vh;}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:0 24px;height:52px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;}
+.logo{font-size:18px;font-weight:800;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.pbody{flex:1;overflow-y:auto;padding:36px;}
+.ptitle{font-size:20px;font-weight:800;margin-bottom:22px;}
+.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;}
+.pcard{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;cursor:pointer;transition:.2s;position:relative;}
+.pcard:hover{border-color:var(--accent);transform:translateY(-2px);}
+.pcard-name{font-size:14px;font-weight:700;margin-bottom:5px;}
+.pcard-date{font-size:11px;color:var(--text-dim);font-family:var(--mono);}
+.pcard-del{position:absolute;top:10px;right:10px;background:transparent;border:none;color:var(--text-dim);cursor:pointer;font-size:13px;opacity:0;transition:.15s;}
+.pcard:hover .pcard-del{opacity:1;}.pcard-del:hover{color:var(--danger);}
+.pnew{border-style:dashed;display:flex;align-items:center;justify-content:center;gap:8px;color:var(--text-dim);font-size:14px;font-weight:600;}
+.pnew:hover{color:var(--accent);border-color:var(--accent);}
+.bsm{padding:7px 13px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--ui);font-size:13px;font-weight:600;cursor:pointer;transition:.15s;}
+.bsm:hover{border-color:var(--accent);color:var(--accent);}
+
+/* EDITOR */
+#editor{display:none;flex-direction:column;height:100vh;}
+.etopbar{display:flex;align-items:center;justify-content:space-between;padding:0 14px;height:48px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;gap:10px;}
+.etl{display:flex;align-items:center;gap:10px;min-width:0;}
+.backbtn{background:transparent;border:none;color:var(--text-dim);cursor:pointer;font-size:18px;flex-shrink:0;transition:.15s;}
+.backbtn:hover{color:var(--text);}
+.projlabel{font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.etr{display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.cbtn{display:flex;align-items:center;gap:7px;padding:8px 18px;background:var(--accent);border:none;border-radius:8px;color:#fff;font-family:var(--ui);font-size:13px;font-weight:700;cursor:pointer;transition:.2s;}
+.cbtn:hover{background:#6b5ce7;}.cbtn:disabled{opacity:.5;cursor:not-allowed;}
+.spin{width:12px;height:12px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite;display:none;}
+.cbtn.loading .spin{display:block;}.cbtn.loading .clabel{display:none;}
+.elayout{display:flex;flex:1;overflow:hidden;}
+
+/* TREE */
+.tree{width:210px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;}
+.treehdr{padding:9px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+.treetitle{font-size:10px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:.07em;font-family:var(--mono);}
+.treeacts{display:flex;gap:3px;}
+.tbtn{background:transparent;border:none;color:var(--text-dim);cursor:pointer;font-size:13px;padding:2px 5px;border-radius:4px;transition:.15s;}
+.tbtn:hover{color:var(--accent);background:var(--surface2);}
+.treebody{flex:1;overflow-y:auto;padding:4px 0;}
+.ti{display:flex;align-items:center;gap:6px;padding:5px 12px;cursor:pointer;font-size:12px;font-family:var(--mono);transition:.1s;white-space:nowrap;overflow:hidden;}
+.ti:hover{background:var(--surface2);}
+.ti.active{background:rgba(124,106,247,.15);color:var(--accent);}
+.ti.folder{color:var(--warn);font-weight:600;}
+.ti-name{flex:1;overflow:hidden;text-overflow:ellipsis;}
+.ti-del{background:transparent;border:none;color:var(--text-dim);cursor:pointer;font-size:10px;opacity:0;padding:1px 3px;border-radius:3px;flex-shrink:0;}
+.ti:hover .ti-del{opacity:1;}.ti-del:hover{color:var(--danger);}
+.ti.indent{padding-left:28px;}
+.treesep{padding:8px 12px 3px;font-size:10px;color:var(--text-dim);font-family:var(--mono);text-transform:uppercase;letter-spacing:.07em;}
+
+/* CODE */
+.codepane{flex:1;display:flex;flex-direction:column;border-right:1px solid var(--border);min-width:0;}
+.panebar{padding:6px 14px;background:var(--surface);border-bottom:1px solid var(--border);font-size:11px;font-family:var(--mono);color:var(--text-dim);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+#code{flex:1;background:var(--bg);color:var(--text);font-family:var(--mono);font-size:13px;line-height:1.75;padding:20px;border:none;outline:none;resize:none;tab-size:2;}
+
+/* PDF */
+.pdfpane{flex:1;display:flex;flex-direction:column;min-width:0;}
+.pdfbox{flex:1;background:#4a4a4a;display:flex;align-items:center;justify-content:center;overflow:hidden;}
+#pdfframe{width:100%;height:100%;border:none;display:none;}
+.pdfph{text-align:center;color:rgba(255,255,255,.25);}
+.pdfph .big{font-size:36px;margin-bottom:10px;}
+.pdfph p{font-size:11px;font-family:var(--mono);}
+
+/* STATUS */
+.statbar{height:25px;background:var(--surface);border-top:1px solid var(--border);display:flex;align-items:center;padding:0 14px;gap:14px;flex-shrink:0;}
+.stat{font-size:11px;font-family:var(--mono);color:var(--text-dim);display:flex;align-items:center;gap:5px;}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--text-dim);}
+.dot.g{background:var(--success);}.dot.y{background:var(--warn);animation:pulse 1s infinite;}.dot.r{background:var(--danger);}
+
+/* MODAL */
+.ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:200;align-items:center;justify-content:center;backdrop-filter:blur(3px);}
+.ov.open{display:flex;}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:28px;width:330px;animation:fadeUp .2s ease;}
+.modal h3{font-size:15px;font-weight:800;margin-bottom:16px;}
+.modal input,.modal select{width:100%;padding:10px 13px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--text);font-family:var(--mono);font-size:13px;outline:none;margin-bottom:13px;transition:.2s;}
+.modal input:focus,.modal select:focus{border-color:var(--accent);}
+.mbtns{display:flex;gap:8px;justify-content:flex-end;}
+.bcancel{padding:8px 16px;background:transparent;border:1px solid var(--border);border-radius:7px;color:var(--text);font-family:var(--ui);font-weight:600;font-size:13px;cursor:pointer;transition:.15s;}
+.bcancel:hover{border-color:var(--danger);color:var(--danger);}
+.bok{padding:8px 16px;background:var(--accent);border:none;border-radius:7px;color:#fff;font-family:var(--ui);font-weight:700;font-size:13px;cursor:pointer;transition:.15s;}
+.bok:hover{background:#6b5ce7;}
+::-webkit-scrollbar{width:5px;}::-webkit-scrollbar-track{background:transparent;}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
 </style>
 </head>
 <body>
 
 <!-- AUTH -->
-<div id="auth-screen">
-  <div class="auth-box">
-    <div class="auth-logo">LaTeX Cloud</div>
-    <div class="auth-subtitle">// tu editor personal en la nube</div>
-    <div class="auth-tabs">
-      <button class="auth-tab active" onclick="switchTab('login')">Ingresar</button>
-      <button class="auth-tab" onclick="switchTab('register')">Registrarse</button>
+<div id="auth">
+  <div class="abox">
+    <div class="alogo">Mercurio</div>
+    <div class="asub">// tu editor personal en la nube</div>
+    <div class="atabs">
+      <button class="atab on" onclick="setMode('login')">Ingresar</button>
+      <button class="atab" onclick="setMode('register')">Registrarse</button>
     </div>
-    <div class="form-group">
-      <label>Email</label>
-      <input type="email" id="auth-email" placeholder="tu@email.com">
-    </div>
-    <div class="form-group">
-      <label>Contraseña</label>
-      <input type="password" id="auth-password" placeholder="••••••••">
-    </div>
-    <button class="btn-primary" onclick="handleAuth()" id="auth-btn">Ingresar</button>
-    <div class="auth-error" id="auth-error"></div>
+    <div class="field"><label>Email</label><input type="email" id="ae" placeholder="tu@email.com"></div>
+    <div class="field"><label>Contraseña</label><input type="password" id="ap" placeholder="••••••••" onkeydown="if(event.key==='Enter')doAuth()"></div>
+    <button class="bprimary" id="abtn" onclick="doAuth()">Ingresar</button>
+    <div class="aerr" id="aerr"></div>
   </div>
 </div>
 
-<!-- APP -->
-<div id="app">
-  <div class="header">
-    <div class="header-left">
-      <div class="logo">LaTeX Cloud</div>
-      <div class="project-selector">
-        <select id="project-select" onchange="loadProject()">
-          <option value="">— seleccioná un proyecto —</option>
-        </select>
-        <button class="btn-icon" onclick="showNewProjectModal()">+ Nuevo</button>
-        <button class="btn-icon" onclick="deleteProject()" style="color: var(--text-dim)">🗑</button>
-      </div>
-    </div>
-    <div class="header-right">
-      <button class="save-btn" onclick="saveProject()">Guardar</button>
-      <button class="compile-btn" onclick="compile()" id="compile-btn">
-        <div class="spinner"></div>
-        <span class="btn-text">▶ Compilar</span>
-      </button>
-      <span class="user-info" id="user-email"></span>
-      <button class="logout-btn" onclick="logout()">salir</button>
+<!-- PROJECTS -->
+<div id="projects">
+  <div class="topbar">
+    <div class="logo">Mercurio</div>
+    <div style="display:flex;align-items:center;gap:12px;">
+      <span style="font-size:12px;color:var(--text-dim);font-family:var(--mono)" id="pusr"></span>
+      <button class="bsm" onclick="logout()">Salir</button>
     </div>
   </div>
+  <div class="pbody">
+    <div class="ptitle">Mis proyectos</div>
+    <div class="pgrid" id="pgrid"></div>
+  </div>
+</div>
 
-  <div class="main">
-    <div class="editor-pane">
-      <div class="pane-header">
-        <span>editor .tex</span>
-        <span id="save-status" style="color: var(--accent2)"></span>
-      </div>
-      <textarea id="editor" spellcheck="false" placeholder="% Escribí tu código LaTeX acá&#10;\documentclass{article}&#10;\begin{document}&#10;Hola mundo&#10;\end{document}"></textarea>
+<!-- EDITOR -->
+<div id="editor">
+  <div class="etopbar">
+    <div class="etl">
+      <button class="backbtn" onclick="goProjects()">←</button>
+      <span class="projlabel" id="plabel"></span>
     </div>
-    <div class="pdf-pane">
-      <div class="pane-header">
-        <span>vista previa PDF</span>
-        <span id="compile-status"></span>
-      </div>
-      <div class="pdf-container">
-        <iframe id="pdf-frame"></iframe>
-        <div class="pdf-placeholder" id="pdf-placeholder">
-          <div class="icon">📄</div>
-          <p>El PDF aparecerá acá después de compilar</p>
+    <div class="etr">
+      <button class="bsm" onclick="saveFile()">Guardar</button>
+      <button class="cbtn" id="cbtn" onclick="compile()">
+        <div class="spin"></div><span class="clabel">▶ Compilar</span>
+      </button>
+    </div>
+  </div>
+  <div class="elayout">
+    <div class="tree">
+      <div class="treehdr">
+        <span class="treetitle">Archivos</span>
+        <div class="treeacts">
+          <button class="tbtn" onclick="showNewFile()" title="Nuevo archivo">📄+</button>
+          <button class="tbtn" onclick="showNewFolder()" title="Nueva carpeta">📁+</button>
+          <button class="tbtn" onclick="document.getElementById('imginput').click()" title="Subir imagen">🖼+</button>
         </div>
       </div>
+      <div class="treebody" id="treebody"></div>
+      <input type="file" id="imginput" accept="image/*" style="display:none" onchange="uploadImage(event)">
+    </div>
+    <div class="codepane">
+      <div class="panebar">
+        <span id="filelabel">— ningún archivo seleccionado —</span>
+        <span id="savestatus" style="color:var(--accent2)"></span>
+      </div>
+      <textarea id="code" spellcheck="false" placeholder="Seleccioná un archivo para editarlo..."></textarea>
+    </div>
+    <div class="pdfpane">
+      <div class="panebar">
+        <span>vista previa PDF</span>
+        <span id="compstatus"></span>
+      </div>
+      <div class="pdfbox">
+        <iframe id="pdfframe"></iframe>
+        <div class="pdfph" id="pdfph"><div class="big">📄</div><p>Compilá para ver el PDF</p></div>
+      </div>
     </div>
   </div>
-
-  <div class="status-bar">
-    <div class="status-item">
-      <div class="status-dot green" id="server-dot"></div>
-      <span id="server-status">servidor listo</span>
-    </div>
-    <div class="status-item">
-      <span id="char-count">0 caracteres</span>
-    </div>
+  <div class="statbar">
+    <div class="stat"><div class="dot g" id="srvdot"></div><span id="srvtxt">listo</span></div>
+    <div class="stat" id="charstat">0 chars</div>
   </div>
 </div>
 
-<!-- MODAL NUEVO PROYECTO -->
-<div class="modal-overlay" id="new-project-modal">
+<!-- MODALS -->
+<div class="ov" id="mnewproj">
   <div class="modal">
     <h3>Nuevo proyecto</h3>
-    <input type="text" id="new-project-name" placeholder="Ej: Tesis, Informe, Apuntes..." 
-           onkeydown="if(event.key==='Enter') createProject()">
-    <div class="modal-btns">
-      <button class="btn-cancel" onclick="hideNewProjectModal()">Cancelar</button>
-      <button class="btn-confirm" onclick="createProject()">Crear</button>
-    </div>
+    <input type="text" id="mprojname" placeholder="Ej: Tesis, Anatomía..." onkeydown="if(event.key==='Enter')createProject()">
+    <div class="mbtns"><button class="bcancel" onclick="cm('mnewproj')">Cancelar</button><button class="bok" onclick="createProject()">Crear</button></div>
+  </div>
+</div>
+<div class="ov" id="mnewfile">
+  <div class="modal">
+    <h3>Nuevo archivo</h3>
+    <select id="mfilefolder"></select>
+    <input type="text" id="mfilename" placeholder="Ej: main.tex, capitulo1.tex" onkeydown="if(event.key==='Enter')createFile()">
+    <div class="mbtns"><button class="bcancel" onclick="cm('mnewfile')">Cancelar</button><button class="bok" onclick="createFile()">Crear</button></div>
+  </div>
+</div>
+<div class="ov" id="mnewfolder">
+  <div class="modal">
+    <h3>Nueva carpeta</h3>
+    <input type="text" id="mfoldername" placeholder="Ej: secciones, imagenes" onkeydown="if(event.key==='Enter')createFolder()">
+    <div class="mbtns"><button class="bcancel" onclick="cm('mnewfolder')">Cancelar</button><button class="bok" onclick="createFolder()">Crear</button></div>
   </div>
 </div>
 
 <script>
-const SUPABASE_URL = 'https://mksqglxkedgdpzdqpldl.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_9fPmdejj4pCUeAIZibFiqw_cws3s6H_';
-const RENDER_URL = 'https://latex-bcnj.onrender.com';
+const SUPA_URL='https://mksqglxkedgdpzdqpldl.supabase.co';
+const SUPA_KEY='sb_publishable_9fPmdejj4pCUeAIZibFiqw_cws3s6H_';
+const RENDER='https://latex-bcnj.onrender.com';
+const sb=supabase.createClient(SUPA_URL,SUPA_KEY);
 
-const { createClient } = supabase;
-const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
-
-let currentUser = null;
-let currentProjectId = null;
-let saveTimeout = null;
-let authMode = 'login';
+let user=null,mode='login',project=null,files=[],activeId=null,stimer=null;
 
 // AUTH
-function switchTab(mode) {
-  authMode = mode;
-  document.querySelectorAll('.auth-tab').forEach((t, i) => {
-    t.classList.toggle('active', (mode === 'login' && i === 0) || (mode === 'register' && i === 1));
+function setMode(m){
+  mode=m;
+  document.querySelectorAll('.atab').forEach((t,i)=>t.classList.toggle('on',(m==='login'&&i===0)||(m==='register'&&i===1)));
+  document.getElementById('abtn').textContent=m==='login'?'Ingresar':'Crear cuenta';
+  document.getElementById('aerr').textContent='';
+}
+async function doAuth(){
+  const e=document.getElementById('ae').value.trim(),p=document.getElementById('ap').value;
+  const btn=document.getElementById('abtn'),err=document.getElementById('aerr');
+  if(!e||!p){err.textContent='Completá todos los campos';return;}
+  btn.disabled=true;btn.textContent='Cargando...';err.textContent='';
+  const {data,error}=await (mode==='login'?sb.auth.signInWithPassword({email:e,password:p}):sb.auth.signUp({email:e,password:p}));
+  if(error){err.textContent=error.message;btn.disabled=false;btn.textContent=mode==='login'?'Ingresar':'Crear cuenta';}
+  else{user=data.user;showProjects();}
+}
+async function logout(){
+  await sb.auth.signOut();user=null;project=null;files=[];activeId=null;
+  show('auth');document.getElementById('ae').value='';document.getElementById('ap').value='';
+  document.getElementById('abtn').disabled=false;document.getElementById('abtn').textContent='Ingresar';
+}
+
+// SCREENS
+function show(id){['auth','projects','editor'].forEach(s=>{const el=document.getElementById(s);el.style.display=s===id?'flex':'none';if(s!=='auth')el.style.flexDirection='column';});}
+
+// PROJECTS
+async function showProjects(){
+  show('projects');document.getElementById('pusr').textContent=user.email;
+  const {data}=await sb.from('projects').select('id,name,updated_at').eq('user_id',user.id).order('updated_at',{ascending:false});
+  const g=document.getElementById('pgrid');g.innerHTML='';
+  const nc=document.createElement('div');nc.className='pcard pnew';nc.innerHTML='<span style="font-size:18px">+</span><span>Nuevo proyecto</span>';nc.onclick=()=>om('mnewproj');g.appendChild(nc);
+  (data||[]).forEach(p=>{
+    const d=document.createElement('div');d.className='pcard';
+    const dt=new Date(p.updated_at).toLocaleDateString('es-AR');
+    d.innerHTML=`<button class="pcard-del" onclick="delProject(event,'${p.id}')">✕</button><div class="pcard-name">${p.name}</div><div class="pcard-date">${dt}</div>`;
+    d.onclick=()=>openProject(p);g.appendChild(d);
   });
-  document.getElementById('auth-btn').textContent = mode === 'login' ? 'Ingresar' : 'Crear cuenta';
-  document.getElementById('auth-error').textContent = '';
 }
-
-async function handleAuth() {
-  const email = document.getElementById('auth-email').value.trim();
-  const password = document.getElementById('auth-password').value;
-  const btn = document.getElementById('auth-btn');
-  const errEl = document.getElementById('auth-error');
-
-  if (!email || !password) { errEl.textContent = 'Completá todos los campos'; return; }
-
-  btn.disabled = true;
-  btn.textContent = 'Cargando...';
-  errEl.textContent = '';
-
-  let result;
-  if (authMode === 'login') {
-    result = await sb.auth.signInWithPassword({ email, password });
-  } else {
-    result = await sb.auth.signUp({ email, password });
-  }
-
-  if (result.error) {
-    errEl.textContent = result.error.message;
-    btn.disabled = false;
-    btn.textContent = authMode === 'login' ? 'Ingresar' : 'Crear cuenta';
-  } else {
-    currentUser = result.data.user;
-    showApp();
-  }
+async function createProject(){
+  const n=document.getElementById('mprojname').value.trim();if(!n)return;
+  const {data}=await sb.from('projects').insert({name:n,user_id:user.id}).select().single();
+  await sb.from('files').insert({project_id:data.id,name:'main.tex',folder:'',content:'\\documentclass{article}\n\\usepackage[utf8]{inputenc}\n\\title{'+n+'}\n\\author{}\n\\date{\\today}\n\n\\begin{document}\n\\maketitle\n\n\\section{Introducción}\nEmpezá a escribir acá.\n\n\\end{document}',is_folder:false,is_image:false});
+  cm('mnewproj');document.getElementById('mprojname').value='';await showProjects();
 }
-
-async function logout() {
-  await sb.auth.signOut();
-  currentUser = null;
-  currentProjectId = null;
-  document.getElementById('app').style.display = 'none';
-  document.getElementById('auth-screen').style.display = 'flex';
-  document.getElementById('auth-email').value = '';
-  document.getElementById('auth-password').value = '';
+async function delProject(e,id){
+  e.stopPropagation();if(!confirm('¿Borrar este proyecto?'))return;
+  await sb.from('files').delete().eq('project_id',id);
+  await sb.from('projects').delete().eq('id',id);await showProjects();
 }
+async function goProjects(){project=null;files=[];activeId=null;await showProjects();}
 
-// APP
-async function showApp() {
-  document.getElementById('auth-screen').style.display = 'none';
-  document.getElementById('app').style.display = 'flex';
-  document.getElementById('user-email').textContent = currentUser.email;
-  await loadProjects();
+// EDITOR
+async function openProject(p){
+  project=p;show('editor');document.getElementById('plabel').textContent=p.name;
+  const {data}=await sb.from('files').select('*').eq('project_id',p.id).order('name');
+  files=data||[];renderTree();
+  const main=files.find(f=>f.name==='main.tex'&&!f.is_folder);if(main)openFile(main.id);
 }
-
-async function loadProjects() {
-  const { data } = await sb.from('projects').select('id, name').order('created_at', { ascending: false });
-  const select = document.getElementById('project-select');
-  select.innerHTML = '<option value="">— seleccioná un proyecto —</option>';
-  if (data) {
-    data.forEach(p => {
-      const opt = document.createElement('option');
-      opt.value = p.id;
-      opt.textContent = p.name;
-      select.appendChild(opt);
+function renderTree(){
+  const b=document.getElementById('treebody');b.innerHTML='';
+  const roots=files.filter(f=>!f.is_folder&&f.folder===''&&!f.is_image);
+  const folders=files.filter(f=>f.is_folder);
+  const images=files.filter(f=>f.is_image);
+  roots.forEach(f=>b.appendChild(mkti(f,false)));
+  folders.forEach(fd=>{
+    const el=document.createElement('div');el.className='ti folder';
+    el.innerHTML=`<span>📁</span><span class="ti-name">${fd.name}</span><button class="ti-del" onclick="delFile(event,'${fd.id}')">✕</button>`;
+    b.appendChild(el);
+    files.filter(f=>!f.is_folder&&f.folder===fd.name&&!f.is_image).forEach(f=>b.appendChild(mkti(f,true)));
+  });
+  if(images.length){
+    const sep=document.createElement('div');sep.className='treesep';sep.textContent='Imágenes';b.appendChild(sep);
+    images.forEach(f=>{
+      const el=document.createElement('div');el.className='ti';
+      el.innerHTML=`<span>🖼</span><span class="ti-name">${f.name}</span><button class="ti-del" onclick="delFile(event,'${f.id}')">✕</button>`;
+      el.onclick=()=>{const path=(f.folder?f.folder+'/':'')+f.name;navigator.clipboard.writeText(path).catch(()=>{});setSS('📋 ruta copiada');};
+      b.appendChild(el);
     });
   }
 }
-
-async function loadProject() {
-  const id = document.getElementById('project-select').value;
-  if (!id) { currentProjectId = null; document.getElementById('editor').value = ''; return; }
-  currentProjectId = id;
-  const { data } = await sb.from('projects').select('content').eq('id', id).single();
-  if (data) {
-    document.getElementById('editor').value = data.content || '';
-    updateCharCount();
-  }
+function mkti(f,indent){
+  const el=document.createElement('div');
+  el.className='ti'+(f.id===activeId?' active':'')+(indent?' indent':'');
+  const ic=f.name.endsWith('.tex')?'📝':f.name.endsWith('.bib')?'📚':'📄';
+  el.innerHTML=`<span>${ic}</span><span class="ti-name">${f.name}</span><button class="ti-del" onclick="delFile(event,'${f.id}')">✕</button>`;
+  el.onclick=()=>openFile(f.id);return el;
+}
+function openFile(id){
+  if(activeId)syncSave();activeId=id;
+  const f=files.find(x=>x.id===id);if(!f)return;
+  document.getElementById('code').value=f.content||'';
+  document.getElementById('filelabel').textContent=(f.folder?f.folder+'/':'')+f.name;
+  document.getElementById('savestatus').textContent='';updateChars();renderTree();
+}
+async function delFile(e,id){
+  e.stopPropagation();if(!confirm('¿Borrar?'))return;
+  await sb.from('files').delete().eq('id',id);
+  if(activeId===id){activeId=null;document.getElementById('code').value='';document.getElementById('filelabel').textContent='— ningún archivo seleccionado —';}
+  const {data}=await sb.from('files').select('*').eq('project_id',project.id).order('name');files=data||[];renderTree();
 }
 
-async function saveProject() {
-  if (!currentProjectId) return;
-  const content = document.getElementById('editor').value;
-  await sb.from('projects').update({ content, updated_at: new Date().toISOString() }).eq('id', currentProjectId);
-  const status = document.getElementById('save-status');
-  status.textContent = '✓ guardado';
-  setTimeout(() => status.textContent = '', 2000);
+// FILE / FOLDER
+function showNewFile(){
+  const sel=document.getElementById('mfilefolder');sel.innerHTML='<option value="">/ (raíz)</option>';
+  files.filter(f=>f.is_folder).forEach(f=>{const o=document.createElement('option');o.value=f.name;o.textContent='📁 '+f.name;sel.appendChild(o);});
+  om('mnewfile');
+}
+async function createFile(){
+  const name=document.getElementById('mfilename').value.trim(),folder=document.getElementById('mfilefolder').value;
+  if(!name)return;
+  const {data}=await sb.from('files').insert({project_id:project.id,name,folder,content:'',is_folder:false,is_image:false}).select().single();
+  files.push(data);cm('mnewfile');document.getElementById('mfilename').value='';renderTree();openFile(data.id);
+}
+async function createFolder(){
+  const name=document.getElementById('mfoldername').value.trim();if(!name)return;
+  const {data}=await sb.from('files').insert({project_id:project.id,name,folder:'',content:'',is_folder:true,is_image:false}).select().single();
+  files.push(data);cm('mnewfolder');document.getElementById('mfoldername').value='';renderTree();
+}
+async function uploadImage(e){
+  const file=e.target.files[0];if(!file)return;
+  const path=`${user.id}/${project.id}/${file.name}`;
+  const {error}=await sb.storage.from('images').upload(path,file,{upsert:true});
+  if(error){alert('Error: '+error.message);return;}
+  const {data:{publicUrl}}=sb.storage.from('images').getPublicUrl(path);
+  const {data}=await sb.from('files').insert({project_id:project.id,name:file.name,folder:'',content:'',is_folder:false,is_image:true,image_url:publicUrl}).select().single();
+  files.push(data);renderTree();setSS('🖼 subida — hacé click para copiar ruta');e.target.value='';
 }
 
-function showNewProjectModal() {
-  document.getElementById('new-project-modal').classList.add('active');
-  setTimeout(() => document.getElementById('new-project-name').focus(), 100);
+// SAVE
+async function saveFile(){if(!activeId)return;await syncSave();setSS('✓ guardado');}
+async function syncSave(){
+  if(!activeId)return;const content=document.getElementById('code').value;
+  const idx=files.findIndex(f=>f.id===activeId);if(idx>=0)files[idx].content=content;
+  await sb.from('files').update({content}).eq('id',activeId);
+  await sb.from('projects').update({updated_at:new Date().toISOString()}).eq('id',project.id);
 }
-
-function hideNewProjectModal() {
-  document.getElementById('new-project-modal').classList.remove('active');
-  document.getElementById('new-project-name').value = '';
-}
-
-async function createProject() {
-  const name = document.getElementById('new-project-name').value.trim();
-  if (!name) return;
-
-  const defaultContent = `\\documentclass{article}
-\\usepackage[utf8]{inputenc}
-\\usepackage[T1]{fontenc}
-\\title{${name}}
-\\author{}
-\\date{\\today}
-
-\\begin{document}
-\\maketitle
-
-\\section{Introducción}
-Empezá a escribir acá.
-
-\\end{document}`;
-
-  const { data } = await sb.from('projects').insert({
-    name,
-    content: defaultContent,
-    user_id: currentUser.id
-  }).select().single();
-
-  hideNewProjectModal();
-  await loadProjects();
-  document.getElementById('project-select').value = data.id;
-  currentProjectId = data.id;
-  document.getElementById('editor').value = defaultContent;
-  updateCharCount();
-}
-
-async function deleteProject() {
-  if (!currentProjectId) return;
-  if (!confirm('¿Borrar este proyecto? No se puede deshacer.')) return;
-  await sb.from('projects').delete().eq('id', currentProjectId);
-  currentProjectId = null;
-  document.getElementById('editor').value = '';
-  await loadProjects();
-}
+function setSS(msg){const el=document.getElementById('savestatus');el.textContent=msg;clearTimeout(stimer);stimer=setTimeout(()=>el.textContent='',3000);}
 
 // COMPILE
-async function compile() {
-  const latex = document.getElementById('editor').value;
-  if (!latex.trim()) return;
-
-  const btn = document.getElementById('compile-btn');
-  const statusEl = document.getElementById('compile-status');
-  const dotEl = document.getElementById('server-dot');
-  const serverStatus = document.getElementById('server-status');
-
-  btn.classList.add('loading');
-  btn.disabled = true;
-  statusEl.textContent = 'compilando...';
-  statusEl.style.color = '#f6ad55';
-  dotEl.className = 'status-dot yellow';
-  serverStatus.textContent = 'compilando...';
-
-  try {
-    const res = await fetch(`${RENDER_URL}/compile`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ latex })
-    });
-
-    if (res.ok) {
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const frame = document.getElementById('pdf-frame');
-      frame.src = url;
-      frame.style.display = 'block';
-      document.getElementById('pdf-placeholder').style.display = 'none';
-      statusEl.textContent = '✓ compilado';
-      statusEl.style.color = 'var(--success)';
-      dotEl.className = 'status-dot green';
-      serverStatus.textContent = 'servidor listo';
+async function compile(){
+  await syncSave();
+  const main=files.find(f=>f.name==='main.tex'&&!f.is_folder&&!f.is_image);
+  if(!main){alert('Necesitás un archivo main.tex para compilar.');return;}
+  const btn=document.getElementById('cbtn'),cs=document.getElementById('compstatus'),dot=document.getElementById('srvdot'),st=document.getElementById('srvtxt');
+  btn.classList.add('loading');btn.disabled=true;cs.textContent='compilando...';cs.style.color='var(--warn)';dot.className='dot y';st.textContent='compilando...';
+  const texFiles={};
+  files.filter(f=>!f.is_folder&&!f.is_image).forEach(f=>{texFiles[(f.folder?f.folder+'/':'')+f.name]=f.content||'';});
+  try{
+    const res=await fetch(`${RENDER}/compile`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({latex:texFiles['main.tex'],files:texFiles})});
+    if(res.ok){
+      const blob=await res.blob(),url=URL.createObjectURL(blob);
+      const fr=document.getElementById('pdfframe');fr.src=url;fr.style.display='block';
+      document.getElementById('pdfph').style.display='none';
+      cs.textContent='✓ listo';cs.style.color='var(--success)';dot.className='dot g';st.textContent='listo';
     } else {
-      statusEl.textContent = '✗ error de compilación';
-      statusEl.style.color = 'var(--danger)';
-      dotEl.className = 'status-dot red';
-      serverStatus.textContent = 'error';
+      cs.textContent='✗ error';cs.style.color='var(--danger)';dot.className='dot r';st.textContent='error';
+      alert('Error de compilación. Revisá tu código LaTeX.');
     }
-  } catch (e) {
-    statusEl.textContent = '✗ no se pudo conectar al servidor';
-    statusEl.style.color = 'var(--danger)';
-    dotEl.className = 'status-dot red';
-    serverStatus.textContent = 'servidor desconectado';
-  }
-
-  btn.classList.remove('loading');
-  btn.disabled = false;
-  setTimeout(() => { statusEl.textContent = ''; }, 4000);
+  } catch(e){cs.textContent='✗ sin conexión';cs.style.color='var(--danger)';dot.className='dot r';st.textContent='sin conexión';}
+  btn.classList.remove('loading');btn.disabled=false;setTimeout(()=>cs.textContent='',5000);
 }
 
-// EDITOR UTILS
-function updateCharCount() {
-  const len = document.getElementById('editor').value.length;
-  document.getElementById('char-count').textContent = `${len.toLocaleString()} caracteres`;
-}
-
-document.getElementById('editor').addEventListener('input', () => {
-  updateCharCount();
-  clearTimeout(saveTimeout);
-  if (currentProjectId) {
-    document.getElementById('save-status').textContent = '● sin guardar';
-    saveTimeout = setTimeout(saveProject, 3000);
-  }
+// EDITOR EVENTS
+document.getElementById('code').addEventListener('input',()=>{
+  updateChars();setSS('● sin guardar');clearTimeout(stimer);
+  stimer=setTimeout(()=>{if(activeId)syncSave().then(()=>setSS('✓ guardado'));},4000);
 });
-
-document.getElementById('editor').addEventListener('keydown', e => {
-  if (e.key === 'Tab') {
-    e.preventDefault();
-    const el = e.target;
-    const start = el.selectionStart;
-    el.value = el.value.substring(0, start) + '  ' + el.value.substring(el.selectionEnd);
-    el.selectionStart = el.selectionEnd = start + 2;
-  }
-  if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-    e.preventDefault();
-    saveProject();
-  }
-  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-    e.preventDefault();
-    compile();
-  }
+document.getElementById('code').addEventListener('keydown',e=>{
+  if(e.key==='Tab'){e.preventDefault();const el=e.target,s=el.selectionStart;el.value=el.value.substring(0,s)+'  '+el.value.substring(el.selectionEnd);el.selectionStart=el.selectionEnd=s+2;}
+  if((e.ctrlKey||e.metaKey)&&e.key==='s'){e.preventDefault();saveFile();}
+  if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();compile();}
 });
+function updateChars(){document.getElementById('charstat').textContent=document.getElementById('code').value.length.toLocaleString()+' chars';}
 
-// Check session on load
-sb.auth.getSession().then(({ data }) => {
-  if (data.session) {
-    currentUser = data.session.user;
-    showApp();
-  }
-});
+// MODALS
+function om(id){document.getElementById(id).classList.add('open');setTimeout(()=>{const i=document.querySelector('#'+id+' input');if(i)i.focus();},80);}
+function cm(id){document.getElementById(id).classList.remove('open');}
+function showNewFolder(){om('mnewfolder');}
+document.querySelectorAll('.ov').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('open');}));
+
+// INIT
+sb.auth.getSession().then(({data})=>{if(data.session){user=data.session.user;showProjects();}});
 </script>
 </body>
 </html>
