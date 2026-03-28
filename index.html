@@ -5,6 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Mercurio</title>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/dracula.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/stex/stex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root {
@@ -117,6 +125,20 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui);height:100vh;o
 .bok{padding:8px 16px;background:var(--accent);border:none;border-radius:7px;color:#fff;font-family:var(--ui);font-weight:700;font-size:13px;cursor:pointer;transition:.15s;}
 .bok:hover{background:#6b5ce7;}
 ::-webkit-scrollbar{width:5px;}::-webkit-scrollbar-track{background:transparent;}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+
+.cm-wrap{flex:1;overflow:hidden;display:flex;flex-direction:column;min-height:0;}
+.CodeMirror{flex:1;height:100% !important;font-family:var(--mono) !important;font-size:13px;line-height:1.75;}
+.CodeMirror-scroll{height:100%;}
+.comp-err{background:#1a0a0a;border-top:2px solid var(--danger);padding:10px 14px;font-size:11px;font-family:var(--mono);color:#ff9999;max-height:120px;overflow-y:auto;flex-shrink:0;display:none;white-space:pre-wrap;}
+.lt-panel{background:var(--surface);border-top:1px solid var(--border);max-height:110px;overflow-y:auto;flex-shrink:0;}
+.lt-item{padding:5px 14px;font-size:11px;font-family:var(--mono);border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:flex-start;}
+.lt-badge{border-radius:3px;padding:1px 5px;font-size:10px;font-weight:700;flex-shrink:0;background:var(--warn);color:#000;}
+.lt-badge.err{background:var(--danger);color:#fff;}
+.lt-msg{color:var(--text);flex:1;}
+.lt-sug{color:var(--accent2);font-size:10px;}
+.CodeMirror-hints{background:var(--surface) !important;border:1px solid var(--border) !important;border-radius:6px !important;font-family:var(--mono) !important;font-size:12px !important;z-index:999;}
+.CodeMirror-hint{color:var(--text) !important;padding:4px 10px !important;}
+li.CodeMirror-hint-active{background:var(--accent) !important;color:#fff !important;}
 </style>
 </head>
 <body>
@@ -173,18 +195,22 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui);height:100vh;o
         <div class="treeacts">
           <button class="tbtn" onclick="showNewFile()" title="Nuevo archivo">📄+</button>
           <button class="tbtn" onclick="showNewFolder()" title="Nueva carpeta">📁+</button>
-          <button class="tbtn" onclick="document.getElementById('imginput').click()" title="Subir imagen">🖼+</button>
+          <button class="tbtn" onclick="document.getElementById('imginput').click()" title="Subir imágenes (múltiples)">🖼+</button>
+          <button class="tbtn" onclick="document.getElementById('folderinput').click()" title="Subir carpeta">📂+</button>
         </div>
       </div>
       <div class="treebody" id="treebody"></div>
-      <input type="file" id="imginput" accept="image/*" style="display:none" onchange="uploadImage(event)">
+      <input type="file" id="imginput" accept="image/*" multiple style="display:none" onchange="uploadImages(event)">
+      <input type="file" id="folderinput" webkitdirectory multiple style="display:none" onchange="uploadFolder(event)">
     </div>
     <div class="codepane">
       <div class="panebar">
         <span id="filelabel">— ningún archivo seleccionado —</span>
         <span id="savestatus" style="color:var(--accent2)"></span>
       </div>
-      <textarea id="code" spellcheck="false" placeholder="Seleccioná un archivo para editarlo..."></textarea>
+      <div class="cm-wrap" id="cmwrap"></div>
+      <div class="comp-err" id="comperr"></div>
+      <div class="lt-panel" id="ltpanel"></div>
     </div>
     <div class="pdfpane">
       <div class="panebar">
@@ -200,6 +226,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui);height:100vh;o
   <div class="statbar">
     <div class="stat"><div class="dot g" id="srvdot"></div><span id="srvtxt">listo</span></div>
     <div class="stat" id="charstat">0 chars</div>
+    <div class="stat" id="ltstat"></div>
   </div>
 </div>
 
@@ -231,17 +258,15 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui);height:100vh;o
 const SUPA_URL='https://mksqglxkedgdpzdqpldl.supabase.co';
 const SUPA_KEY='sb_publishable_9fPmdejj4pCUeAIZibFiqw_cws3s6H_';
 const RENDER='https://latex-lnlu.onrender.com';
+const LT_URL='https://api.languagetool.org/v2/check';
 const sb=supabase.createClient(SUPA_URL,SUPA_KEY);
 
-let user=null,mode='login',project=null,files=[],activeId=null,stimer=null;
+const LATEX_CMDS=['\\documentclass','\\usepackage','\\begin','\\end','\\section','\\subsection','\\subsubsection','\\textbf','\\textit','\\emph','\\underline','\\label','\\ref','\\autoref','\\cite','\\includegraphics','\\caption','\\centering','\\item','\\frac','\\sqrt','\\sum','\\int','\\alpha','\\beta','\\gamma','\\delta','\\theta','\\lambda','\\mu','\\pi','\\sigma','\\omega','\\left','\\right','\\hspace','\\vspace','\\newcommand','\\title','\\author','\\date','\\maketitle','\\tableofcontents','\\footnote','\\href','\\url','\\color','\\textcolor','\\multirow','\\multicolumn','\\hline','\\vec','\\hat','\\partial','\\nabla','\\times','\\cdot','\\pm','\\leq','\\geq','\\neq','\\infty','\\newline','\\noindent','\\chapter','\\paragraph','\\ce','\\SI','\\num','\\itemize','\\enumerate'];
 
-// AUTH
-function setMode(m){
-  mode=m;
-  document.querySelectorAll('.atab').forEach((t,i)=>t.classList.toggle('on',(m==='login'&&i===0)||(m==='register'&&i===1)));
-  document.getElementById('abtn').textContent=m==='login'?'Ingresar':'Crear cuenta';
-  document.getElementById('aerr').textContent='';
-}
+let user=null,mode='login',project=null,files=[],activeId=null,stimer=null,ltTimer=null,cmEditor=null;
+
+function setMode(m){mode=m;document.querySelectorAll('.atab').forEach((t,i)=>t.classList.toggle('on',(m==='login'&&i===0)||(m==='register'&&i===1)));document.getElementById('abtn').textContent=m==='login'?'Ingresar':'Crear cuenta';document.getElementById('aerr').textContent='';}
+
 async function doAuth(){
   const e=document.getElementById('ae').value.trim(),p=document.getElementById('ap').value;
   const btn=document.getElementById('abtn'),err=document.getElementById('aerr');
@@ -251,172 +276,220 @@ async function doAuth(){
   if(error){err.textContent=error.message;btn.disabled=false;btn.textContent=mode==='login'?'Ingresar':'Crear cuenta';}
   else{user=data.user;showProjects();}
 }
-async function logout(){
-  await sb.auth.signOut();user=null;project=null;files=[];activeId=null;
-  show('auth');document.getElementById('ae').value='';document.getElementById('ap').value='';
-  document.getElementById('abtn').disabled=false;document.getElementById('abtn').textContent='Ingresar';
-}
-
-// SCREENS
+async function logout(){await sb.auth.signOut();user=null;project=null;files=[];activeId=null;show('auth');}
 function show(id){['auth','projects','editor'].forEach(s=>{const el=document.getElementById(s);el.style.display=s===id?'flex':'none';if(s!=='auth')el.style.flexDirection='column';});}
 
-// PROJECTS
 async function showProjects(){
   show('projects');document.getElementById('pusr').textContent=user.email;
   const {data}=await sb.from('projects').select('id,name,updated_at').eq('user_id',user.id).order('updated_at',{ascending:false});
   const g=document.getElementById('pgrid');g.innerHTML='';
   const nc=document.createElement('div');nc.className='pcard pnew';nc.innerHTML='<span style="font-size:18px">+</span><span>Nuevo proyecto</span>';nc.onclick=()=>om('mnewproj');g.appendChild(nc);
-  (data||[]).forEach(p=>{
-    const d=document.createElement('div');d.className='pcard';
-    const dt=new Date(p.updated_at).toLocaleDateString('es-AR');
-    d.innerHTML=`<button class="pcard-del" onclick="delProject(event,'${p.id}')">✕</button><div class="pcard-name">${p.name}</div><div class="pcard-date">${dt}</div>`;
-    d.onclick=()=>openProject(p);g.appendChild(d);
-  });
+  (data||[]).forEach(p=>{const d=document.createElement('div');d.className='pcard';const dt=new Date(p.updated_at).toLocaleDateString('es-AR');d.innerHTML=`<button class="pcard-del" onclick="delProject(event,'${p.id}')">✕</button><div class="pcard-name">${p.name}</div><div class="pcard-date">${dt}</div>`;d.onclick=()=>openProject(p);g.appendChild(d);});
 }
 async function createProject(){
   const n=document.getElementById('mprojname').value.trim();if(!n)return;
   const {data}=await sb.from('projects').insert({name:n,user_id:user.id}).select().single();
-  await sb.from('files').insert({project_id:data.id,name:'main.tex',folder:'',content:'\\documentclass{article}\n\\usepackage[utf8]{inputenc}\n\\title{'+n+'}\n\\author{}\n\\date{\\today}\n\n\\begin{document}\n\\maketitle\n\n\\section{Introducción}\nEmpezá a escribir acá.\n\n\\end{document}',is_folder:false,is_image:false});
+  await sb.from('files').insert({project_id:data.id,name:'main.tex',folder:'',content:'\\documentclass{article}\n\\usepackage[utf8]{inputenc}\n\\usepackage[spanish]{babel}\n\\title{'+n+'}\n\\author{}\n\\date{\\today}\n\n\\begin{document}\n\\maketitle\n\n\\section{Introducción}\n\n\\end{document}',is_folder:false,is_image:false});
   cm('mnewproj');document.getElementById('mprojname').value='';await showProjects();
 }
-async function delProject(e,id){
-  e.stopPropagation();if(!confirm('¿Borrar este proyecto?'))return;
-  await sb.from('files').delete().eq('project_id',id);
-  await sb.from('projects').delete().eq('id',id);await showProjects();
-}
-async function goProjects(){project=null;files=[];activeId=null;await showProjects();}
+async function delProject(e,id){e.stopPropagation();if(!confirm('¿Borrar este proyecto?'))return;await sb.from('files').delete().eq('project_id',id);await sb.from('projects').delete().eq('id',id);await showProjects();}
+async function goProjects(){project=null;files=[];activeId=null;if(cmEditor)cmEditor.setValue('');await showProjects();}
 
-// EDITOR
 async function openProject(p){
   project=p;show('editor');document.getElementById('plabel').textContent=p.name;
+  if(!cmEditor)initCM();
   const {data}=await sb.from('files').select('*').eq('project_id',p.id).order('name');
   files=data||[];renderTree();
   const main=files.find(f=>f.name==='main.tex'&&!f.is_folder);if(main)openFile(main.id);
 }
+
+function initCM(){
+  const wrap=document.getElementById('cmwrap');
+  const ta=document.createElement('textarea');wrap.appendChild(ta);
+  cmEditor=CodeMirror.fromTextArea(ta,{
+    mode:'stex',theme:'dracula',lineNumbers:true,lineWrapping:true,
+    matchBrackets:true,autoCloseBrackets:{pairs:'()[]{}',explode:'[]{}'},
+    extraKeys:{
+      'Ctrl-Space':function(cm){showHint(cm);},
+      'Ctrl-S':function(){saveFile();},
+      'Ctrl-Enter':function(){compile();},
+      'Ctrl-T':toggleComment,
+      'Ctrl-U':toggleComment,
+    }
+  });
+  cmEditor.on('beforeChange',function(cm,change){
+    if(change.origin==='+input'&&change.text.join('')==='$'){
+      const cur=cm.getCursor();
+      setTimeout(function(){cm.replaceRange('$',{line:cur.line,ch:cur.ch+1});cm.setCursor({line:cur.line,ch:cur.ch+1});},0);
+    }
+  });
+  cmEditor.on('change',function(){
+    updateChars();setSS('● sin guardar');
+    clearTimeout(stimer);stimer=setTimeout(function(){if(activeId)syncSave().then(function(){setSS('✓ guardado');});},4000);
+    clearTimeout(ltTimer);ltTimer=setTimeout(checkLT,3000);
+  });
+  cmEditor.setSize('100%','100%');
+}
+
+function showHint(cm){
+  CodeMirror.showHint(cm,function(){
+    const cur=cm.getCursor(),token=cm.getTokenAt(cur);
+    const word=token.string;
+    const list=LATEX_CMDS.filter(function(c){return c.startsWith(word);});
+    return{list:list,from:CodeMirror.Pos(cur.line,token.start),to:CodeMirror.Pos(cur.line,token.end)};
+  },{completeSingle:false});
+}
+
+function toggleComment(cm){
+  cm.listSelections().forEach(function(range){
+    const from=Math.min(range.anchor.line,range.head.line);
+    const to=Math.max(range.anchor.line,range.head.line);
+    for(let i=from;i<=to;i++){const line=cm.getLine(i);if(line.startsWith('%'))cm.replaceRange(line.slice(1),{line:i,ch:0},{line:i,ch:line.length});else cm.replaceRange('%'+line,{line:i,ch:0},{line:i,ch:line.length});}
+  });
+}
+
 function renderTree(){
   const b=document.getElementById('treebody');b.innerHTML='';
-  const roots=files.filter(f=>!f.is_folder&&f.folder===''&&!f.is_image);
-  const folders=files.filter(f=>f.is_folder);
-  const images=files.filter(f=>f.is_image);
-  roots.forEach(f=>b.appendChild(mkti(f,false)));
-  folders.forEach(fd=>{
+  files.filter(function(f){return !f.is_folder&&f.folder===''&&!f.is_image;}).forEach(function(f){b.appendChild(mkti(f,false));});
+  files.filter(function(f){return f.is_folder;}).forEach(function(fd){
     const el=document.createElement('div');el.className='ti folder';
-    el.innerHTML=`<span>📁</span><span class="ti-name">${fd.name}</span><button class="ti-del" onclick="delFile(event,'${fd.id}')">✕</button>`;
-    b.appendChild(el);
-    files.filter(f=>!f.is_folder&&f.folder===fd.name&&!f.is_image).forEach(f=>b.appendChild(mkti(f,true)));
+    el.innerHTML='<span>📁</span><span class="ti-name">'+fd.name+'</span><button class="ti-del" onclick="delFile(event,\''+fd.id+'\')">✕</button>';b.appendChild(el);
+    files.filter(function(f){return !f.is_folder&&f.folder===fd.name&&!f.is_image;}).forEach(function(f){b.appendChild(mkti(f,true));});
   });
-  if(images.length){
+  const imgs=files.filter(function(f){return f.is_image;});
+  if(imgs.length){
     const sep=document.createElement('div');sep.className='treesep';sep.textContent='Imágenes';b.appendChild(sep);
-    images.forEach(f=>{
-      const el=document.createElement('div');el.className='ti';
-      el.innerHTML=`<span>🖼</span><span class="ti-name">${f.name}</span><button class="ti-del" onclick="delFile(event,'${f.id}')">✕</button>`;
-      el.onclick=()=>{const path=(f.folder?f.folder+'/':'')+f.name;navigator.clipboard.writeText(path).catch(()=>{});setSS('📋 ruta copiada');};
-      b.appendChild(el);
-    });
+    imgs.forEach(function(f){const el=document.createElement('div');el.className='ti';el.innerHTML='<span>🖼</span><span class="ti-name">'+f.name+'</span><button class="ti-del" onclick="delFile(event,\''+f.id+'\')">✕</button>';el.onclick=function(){navigator.clipboard.writeText((f.folder?f.folder+'/':'')+f.name).catch(function(){});setSS('📋 ruta copiada');};b.appendChild(el);});
   }
 }
 function mkti(f,indent){
-  const el=document.createElement('div');
-  el.className='ti'+(f.id===activeId?' active':'')+(indent?' indent':'');
+  const el=document.createElement('div');el.className='ti'+(f.id===activeId?' active':'')+(indent?' indent':'');
   const ic=f.name.endsWith('.tex')?'📝':f.name.endsWith('.bib')?'📚':'📄';
-  el.innerHTML=`<span>${ic}</span><span class="ti-name">${f.name}</span><button class="ti-del" onclick="delFile(event,'${f.id}')">✕</button>`;
-  el.onclick=()=>openFile(f.id);return el;
+  el.innerHTML='<span>'+ic+'</span><span class="ti-name">'+f.name+'</span><button class="ti-del" onclick="delFile(event,\''+f.id+'\')">✕</button>';
+  el.onclick=function(){openFile(f.id);};return el;
 }
 function openFile(id){
   if(activeId)syncSave();activeId=id;
-  const f=files.find(x=>x.id===id);if(!f)return;
-  document.getElementById('code').value=f.content||'';
+  const f=files.find(function(x){return x.id===id;});if(!f)return;
+  cmEditor.setValue(f.content||'');cmEditor.clearHistory();
   document.getElementById('filelabel').textContent=(f.folder?f.folder+'/':'')+f.name;
-  document.getElementById('savestatus').textContent='';updateChars();renderTree();
+  document.getElementById('savestatus').textContent='';
+  document.getElementById('ltpanel').innerHTML='';document.getElementById('ltstat').textContent='';
+  document.getElementById('comperr').style.display='none';
+  updateChars();renderTree();setTimeout(function(){cmEditor.refresh();},10);
 }
 async function delFile(e,id){
   e.stopPropagation();if(!confirm('¿Borrar?'))return;
   await sb.from('files').delete().eq('id',id);
-  if(activeId===id){activeId=null;document.getElementById('code').value='';document.getElementById('filelabel').textContent='— ningún archivo seleccionado —';}
+  if(activeId===id){activeId=null;cmEditor.setValue('');document.getElementById('filelabel').textContent='— ningún archivo seleccionado —';}
   const {data}=await sb.from('files').select('*').eq('project_id',project.id).order('name');files=data||[];renderTree();
 }
 
-// FILE / FOLDER
 function showNewFile(){
   const sel=document.getElementById('mfilefolder');sel.innerHTML='<option value="">/ (raíz)</option>';
-  files.filter(f=>f.is_folder).forEach(f=>{const o=document.createElement('option');o.value=f.name;o.textContent='📁 '+f.name;sel.appendChild(o);});
-  om('mnewfile');
+  files.filter(function(f){return f.is_folder;}).forEach(function(f){const o=document.createElement('option');o.value=f.name;o.textContent='📁 '+f.name;sel.appendChild(o);});om('mnewfile');
 }
 async function createFile(){
-  const name=document.getElementById('mfilename').value.trim(),folder=document.getElementById('mfilefolder').value;
-  if(!name)return;
-  const {data}=await sb.from('files').insert({project_id:project.id,name,folder,content:'',is_folder:false,is_image:false}).select().single();
+  const name=document.getElementById('mfilename').value.trim(),folder=document.getElementById('mfilefolder').value;if(!name)return;
+  const {data}=await sb.from('files').insert({project_id:project.id,name:name,folder:folder,content:'',is_folder:false,is_image:false}).select().single();
   files.push(data);cm('mnewfile');document.getElementById('mfilename').value='';renderTree();openFile(data.id);
 }
 async function createFolder(){
   const name=document.getElementById('mfoldername').value.trim();if(!name)return;
-  const {data}=await sb.from('files').insert({project_id:project.id,name,folder:'',content:'',is_folder:true,is_image:false}).select().single();
+  const {data}=await sb.from('files').insert({project_id:project.id,name:name,folder:'',content:'',is_folder:true,is_image:false}).select().single();
   files.push(data);cm('mnewfolder');document.getElementById('mfoldername').value='';renderTree();
 }
-async function uploadImage(e){
-  const file=e.target.files[0];if(!file)return;
-  const path=`${user.id}/${project.id}/${file.name}`;
-  const {error}=await sb.storage.from('images').upload(path,file,{upsert:true});
-  if(error){alert('Error: '+error.message);return;}
-  const {data:{publicUrl}}=sb.storage.from('images').getPublicUrl(path);
-  const {data}=await sb.from('files').insert({project_id:project.id,name:file.name,folder:'',content:'',is_folder:false,is_image:true,image_url:publicUrl}).select().single();
-  files.push(data);renderTree();setSS('🖼 subida — hacé click para copiar ruta');e.target.value='';
+
+async function uploadImages(e){
+  const fs=Array.from(e.target.files);if(!fs.length)return;setSS('Subiendo '+fs.length+' imagen(es)...');
+  for(const file of fs){
+    const path=user.id+'/'+project.id+'/'+file.name;
+    await sb.storage.from('images').upload(path,file,{upsert:true});
+    const res=sb.storage.from('images').getPublicUrl(path);
+    const publicUrl=res.data.publicUrl;
+    const {data}=await sb.from('files').insert({project_id:project.id,name:file.name,folder:'',content:'',is_folder:false,is_image:true,image_url:publicUrl}).select().single();
+    files.push(data);
+  }
+  renderTree();setSS('✓ '+fs.length+' imagen(es) subida(s)');e.target.value='';
 }
 
-// SAVE
+async function uploadFolder(e){
+  const fs=Array.from(e.target.files);if(!fs.length)return;
+  const folderName=fs[0].webkitRelativePath.split('/')[0];setSS('Subiendo "'+folderName+'"...');
+  if(!files.find(function(f){return f.is_folder&&f.name===folderName;})){
+    const {data}=await sb.from('files').insert({project_id:project.id,name:folderName,folder:'',content:'',is_folder:true,is_image:false}).select().single();files.push(data);
+  }
+  for(const file of fs){
+    if(file.type.startsWith('image/')){
+      const path=user.id+'/'+project.id+'/'+folderName+'/'+file.name;
+      await sb.storage.from('images').upload(path,file,{upsert:true});
+      const res=sb.storage.from('images').getPublicUrl(path);
+      const {data}=await sb.from('files').insert({project_id:project.id,name:file.name,folder:folderName,content:'',is_folder:false,is_image:true,image_url:res.data.publicUrl}).select().single();files.push(data);
+    }else{
+      const content=await file.text();
+      const {data}=await sb.from('files').insert({project_id:project.id,name:file.name,folder:folderName,content:content,is_folder:false,is_image:false}).select().single();files.push(data);
+    }
+  }
+  renderTree();setSS('✓ Carpeta "'+folderName+'" subida');e.target.value='';
+}
+
 async function saveFile(){if(!activeId)return;await syncSave();setSS('✓ guardado');}
 async function syncSave(){
-  if(!activeId)return;const content=document.getElementById('code').value;
-  const idx=files.findIndex(f=>f.id===activeId);if(idx>=0)files[idx].content=content;
-  await sb.from('files').update({content}).eq('id',activeId);
+  if(!activeId||!cmEditor)return;const content=cmEditor.getValue();
+  const idx=files.findIndex(function(f){return f.id===activeId;});if(idx>=0)files[idx].content=content;
+  await sb.from('files').update({content:content}).eq('id',activeId);
   await sb.from('projects').update({updated_at:new Date().toISOString()}).eq('id',project.id);
 }
-function setSS(msg){const el=document.getElementById('savestatus');el.textContent=msg;clearTimeout(stimer);stimer=setTimeout(()=>el.textContent='',3000);}
+function setSS(msg){const el=document.getElementById('savestatus');el.textContent=msg;clearTimeout(stimer);stimer=setTimeout(function(){el.textContent='';},3500);}
 
-// COMPILE
-async function compile(){
-  await syncSave();
-  const main=files.find(f=>f.name==='main.tex'&&!f.is_folder&&!f.is_image);
-  if(!main){alert('Necesitás un archivo main.tex para compilar.');return;}
-  const btn=document.getElementById('cbtn'),cs=document.getElementById('compstatus'),dot=document.getElementById('srvdot'),st=document.getElementById('srvtxt');
-  btn.classList.add('loading');btn.disabled=true;cs.textContent='compilando...';cs.style.color='var(--warn)';dot.className='dot y';st.textContent='compilando...';
-  const texFiles={};
-  files.filter(f=>!f.is_folder&&!f.is_image).forEach(f=>{texFiles[(f.folder?f.folder+'/':'')+f.name]=f.content||'';});
+async function checkLT(){
+  if(!activeId||!cmEditor)return;
+  const f=files.find(function(x){return x.id===activeId;});if(!f||!f.name.endsWith('.tex'))return;
+  const raw=cmEditor.getValue();
+  const text=raw.replace(/\\[a-zA-Z]+\*?\{[^}]*\}/g,' ').replace(/\\[a-zA-Z]+\*/g,' ').replace(/\\[a-zA-Z]+/g,' ').replace(/[{}$%\[\]\\]/g,' ').replace(/\s+/g,' ').trim();
+  if(text.length<20)return;
   try{
-    const res=await fetch(`${RENDER}/compile`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({latex:texFiles['main.tex'],files:texFiles})});
-    if(res.ok){
-      const blob=await res.blob(),url=URL.createObjectURL(blob);
-      const fr=document.getElementById('pdfframe');fr.src=url;fr.style.display='block';
-      document.getElementById('pdfph').style.display='none';
-      cs.textContent='✓ listo';cs.style.color='var(--success)';dot.className='dot g';st.textContent='listo';
-    } else {
-      cs.textContent='✗ error';cs.style.color='var(--danger)';dot.className='dot r';st.textContent='error';
-      alert('Error de compilación. Revisá tu código LaTeX.');
-    }
-  } catch(e){cs.textContent='✗ sin conexión';cs.style.color='var(--danger)';dot.className='dot r';st.textContent='sin conexión';}
-  btn.classList.remove('loading');btn.disabled=false;setTimeout(()=>cs.textContent='',5000);
+    const body=new URLSearchParams({text:text,language:'es'});
+    const res=await fetch(LT_URL,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:body});
+    const data=await res.json();
+    const matches=(data.matches||[]).slice(0,6);
+    const panel=document.getElementById('ltpanel');
+    document.getElementById('ltstat').textContent=matches.length?'⚠ '+matches.length+' sugerencia(s)':'';
+    panel.innerHTML=matches.map(function(m){
+      const sug=m.replacements.slice(0,3).map(function(r){return r.value;}).join(', ');
+      return '<div class="lt-item"><span class="lt-badge '+(m.rule.issueType==='misspelling'?'err':'')+'">'+( m.rule.issueType==='misspelling'?'ortografía':'estilo')+'</span><div><div class="lt-msg">'+m.message+'</div>'+(sug?'<div class="lt-sug">→ '+sug+'</div>':'')+'</div></div>';
+    }).join('');
+  }catch(err){console.log('LT:',err);}
 }
 
-// EDITOR EVENTS
-document.getElementById('code').addEventListener('input',()=>{
-  updateChars();setSS('● sin guardar');clearTimeout(stimer);
-  stimer=setTimeout(()=>{if(activeId)syncSave().then(()=>setSS('✓ guardado'));},4000);
-});
-document.getElementById('code').addEventListener('keydown',e=>{
-  if(e.key==='Tab'){e.preventDefault();const el=e.target,s=el.selectionStart;el.value=el.value.substring(0,s)+'  '+el.value.substring(el.selectionEnd);el.selectionStart=el.selectionEnd=s+2;}
-  if((e.ctrlKey||e.metaKey)&&e.key==='s'){e.preventDefault();saveFile();}
-  if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();compile();}
-});
-function updateChars(){document.getElementById('charstat').textContent=document.getElementById('code').value.length.toLocaleString()+' chars';}
+async function compile(){
+  await syncSave();
+  const main=files.find(function(f){return f.name==='main.tex'&&!f.is_folder&&!f.is_image;});
+  if(!main){alert('Necesitás un archivo main.tex para compilar.');return;}
+  const btn=document.getElementById('cbtn'),cs=document.getElementById('compstatus'),dot=document.getElementById('srvdot'),st=document.getElementById('srvtxt'),errEl=document.getElementById('comperr');
+  btn.classList.add('loading');btn.disabled=true;cs.textContent='compilando...';cs.style.color='var(--warn)';dot.className='dot y';st.textContent='compilando...';errEl.style.display='none';
+  const texFiles={};files.filter(function(f){return !f.is_folder&&!f.is_image;}).forEach(function(f){texFiles[(f.folder?f.folder+'/':'')+f.name]=f.content||'';});
+  try{
+    const res=await fetch(RENDER+'/compile',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({latex:texFiles['main.tex'],files:texFiles})});
+    if(res.ok){
+      const blob=await res.blob(),url=URL.createObjectURL(blob);
+      const fr=document.getElementById('pdfframe');fr.src=url;fr.style.display='block';document.getElementById('pdfph').style.display='none';
+      cs.textContent='✓ listo';cs.style.color='var(--success)';dot.className='dot g';st.textContent='listo';
+    }else{
+      const err=await res.json().catch(function(){return {error:'Error desconocido'};});
+      cs.textContent='✗ error';cs.style.color='var(--danger)';dot.className='dot r';st.textContent='error';
+      errEl.style.display='block';errEl.textContent=err.error||'Error de compilación';
+    }
+  }catch(e){cs.textContent='✗ sin conexión';cs.style.color='var(--danger)';dot.className='dot r';st.textContent='sin conexión';}
+  btn.classList.remove('loading');btn.disabled=false;setTimeout(function(){cs.textContent='';},5000);
+}
 
-// MODALS
-function om(id){document.getElementById(id).classList.add('open');setTimeout(()=>{const i=document.querySelector('#'+id+' input');if(i)i.focus();},80);}
+function updateChars(){if(cmEditor)document.getElementById('charstat').textContent=cmEditor.getValue().length.toLocaleString()+' chars';}
+function om(id){document.getElementById(id).classList.add('open');setTimeout(function(){const i=document.querySelector('#'+id+' input');if(i)i.focus();},80);}
 function cm(id){document.getElementById(id).classList.remove('open');}
 function showNewFolder(){om('mnewfolder');}
-document.querySelectorAll('.ov').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('open');}));
-
-// INIT
-sb.auth.getSession().then(({data})=>{if(data.session){user=data.session.user;showProjects();}});
+document.querySelectorAll('.ov').forEach(function(o){o.addEventListener('click',function(e){if(e.target===o)o.classList.remove('open');});});
+sb.auth.getSession().then(function(res){if(res.data.session){user=res.data.session.user;showProjects();}});
 </script>
 </body>
 </html>
